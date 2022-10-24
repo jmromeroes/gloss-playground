@@ -1,0 +1,40 @@
+Name:                gloss-playground
+Version:             0.1
+License:             MIT
+Author:              Jose Romero
+Build-Type:          Simple
+Cabal-Version:       >=1.10
+Stability:           experimental
+Category:            Graphics
+Description:
+        Playground with different gloss interactions created for gloss-examples and to play with graphics
+
+Synopsis:
+        Examples and interactive playground for gloss
+
+source-repository head
+  type:           git
+  location:       https://github.com/Makell-Digital/gloss-playground
+
+source-repository this
+  type:         git
+  tag:          v0.1
+  location:     https://github.com/Makell-Digital/gloss-playground
+
+Executable gloss-terrain
+  main-is:        Main.hs
+  hs-source-dirs: graphics/Terrain
+
+  Build-depends:
+          base                          >= 4.8 && < 5
+        , random                        == 1.2.*
+        , gloss                         == 1.13.*
+        , matrix                        == 0.3.6.1
+        , vector                        == 0.12.3.1
+  Default-Language:
+        Haskell2010
+
+  ghc-options:
+        -O2
+        -threaded
+        -rtsopts
