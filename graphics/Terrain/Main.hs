@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- Implementation of unstable terrain animation inspired in
 -- Coding Challenge #11: 3D Terrain Generation with Perlin Noise in Processing
 -- https://www.youtube.com/watch?v=IKB1hWWedMk
@@ -32,7 +34,7 @@ main = do
       let pts = getPointsFromRowsAndCols w
       
       simulate (InWindow "Gloss Playground" (round (width w) :: Int, round (height w) :: Int) (10, 10))
-        black 30 pts (renderTriangles w) iteration
+        black 30 pts renderTriangles iteration
 
 getPointsFromRowsAndCols :: World -> [[ThreeDPoint]]
 getPointsFromRowsAndCols w = do
@@ -53,7 +55,10 @@ getPointsFromRowsAndCols w = do
                   }
   
 projectionMatrix :: M.Matrix Float
-projectionMatrix = M.fromLists [[1, 0, 0], [0, 1, 0]]
+projectionMatrix = M.fromLists [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
+projectedMatrix :: M.Matrix Float -> M.Matrix Float
+projectedMatrix = M.multStd2 projectionMatrix
 
 fromMatrixToPoint :: M.Matrix Float -> Point
 fromMatrixToPoint m = (vector V.! 0, vector V.! 1)
@@ -64,12 +69,31 @@ fromMatrixToPoint m = (vector V.! 0, vector V.! 1)
 getPointsFrom3D :: ThreeDPoint -> Point
 getPointsFrom3D pt = (x pt, y pt)
 
+rotationMatrix :: Float -> M.Matrix Float
+rotationMatrix angle =
+  M.fromLists [[1, 0, 0],
+               [0, cos angle, -sin angle ],
+               [0, sin angle, cos angle ]]
+
 rotateX :: M.Matrix Float -> Float -> M.Matrix Float
-rotateX points angle = undefined
+rotateX points angle =
+  M.multStd2 (rotationMatrix angle) (projectedMatrix points)
+
+from3DPoint :: ThreeDPoint -> M.Matrix Float
+from3DPoint ThreeDPoint{..} = M.fromLists [[x],
+                                           [y],
+                                           [z]]
+                              
+rotatedPts :: ThreeDPoint -> Point
+rotatedPts point =
+  let rotatedM = rotateX (from3DPoint point) 0
+      row = M.getCol 1 rotatedM
+  in (row V.! 1, row V.! 2)
   
-renderTriangles :: World -> [[ThreeDPoint]] -> Picture
-renderTriangles w pts =
+renderTriangles :: [[ThreeDPoint]] -> Picture
+renderTriangles pts =
   color white $ Pictures polygons
+
   where
     coordinates = do
       y' <- [0..(length pts - 2)]
@@ -84,12 +108,10 @@ renderTriangles w pts =
                     , line [mappedPts!!(y'+1)!!x', mappedPts!!(y'+1)!!(x'+1)]
                     , line [mappedPts!!(y'+1)!!(x'+1), mappedPts!!y'!!x']
                     ]
-
            where
+             mappedPts :: [[Point]]
              mappedPts =
-               map (map getPointsFrom3D) pts
-             
-           
-
+               map (map rotatedPts) pts
+               
 iteration :: ViewPort -> Float -> [[ThreeDPoint]] -> [[ThreeDPoint]]
 iteration _vp _step pts = pts
