@@ -1,4 +1,3 @@
-{-# LANGUAGE ParallelListComp #-}
 -- Implementation of unstable terrain animation inspired in
 -- Coding Challenge #11: 3D Terrain Generation with Perlin Noise in Processing
 -- https://www.youtube.com/watch?v=IKB1hWWedMk
@@ -30,13 +29,10 @@ main = do
                     , height = 600
                     , wScale = 20
                     }
-      let scl = wScale w
-      let cols = round (width w / scl) :: Integer
-      let rows = round (height w / scl) :: Integer
-      let pts = (getPointsFromRowsAndCols w) :: [[ThreeDPoint]]
+      let pts = getPointsFromRowsAndCols w
       
       simulate (InWindow "Gloss Playground" (round (width w) :: Int, round (height w) :: Int) (10, 10))
-        black 30 ( pts) (renderTriangles w) iteration
+        black 30 pts (renderTriangles w) iteration
 
 getPointsFromRowsAndCols :: World -> [[ThreeDPoint]]
 getPointsFromRowsAndCols w = do
@@ -52,10 +48,9 @@ getPointsFromRowsAndCols w = do
     createPoint :: Integer -> Integer -> ThreeDPoint
     createPoint col row =
       ThreeDPoint { x = (fromIntegral col * scl) - width'/2
-                  , y = ((fromIntegral row * scl) - (height'/2))
+                  , y = (fromIntegral row * scl) - (height'/2)
                   , z = 0
                   }
-      
   
 projectionMatrix :: M.Matrix Float
 projectionMatrix = M.fromLists [[1, 0, 0], [0, 1, 0]]
@@ -77,25 +72,22 @@ renderTriangles w pts =
   color white $ Pictures polygons
   where
     coordinates = do
-      y <- [0..(length pts - 2)]
-      x <- [0..(length pts - 2)]
-      return (x, y)
-
-    pointFromCoordinate :: Int -> Int -> ThreeDPoint
-    pointFromCoordinate x y = pts!!y!!x
-      
+      y' <- [0..(length pts - 2)]
+      x' <- [0..(length pts - 2)]
+      return (x', y')
+  
     polygons =
       do map getTriangleFromPoints coordinates
 
     getTriangleFromPoints (y', x') =
-           Pictures [ line [x $ pts!!y'!!x', y $ pts!!(y'+1)!!x']
-                    , line [pts!!(y+1)!!x, pts!!(y+1)!!(x+1)]
-                    , line [pts!!(y+1)!!(x+1), pts!!y!!x]
+           Pictures [ line [mappedPts!!y'!!x', mappedPts!!(y'+1)!!x']
+                    , line [mappedPts!!(y'+1)!!x', mappedPts!!(y'+1)!!(x'+1)]
+                    , line [mappedPts!!(y'+1)!!(x'+1), mappedPts!!y'!!x']
                     ]
 
            where
              mappedPts =
-               map (\row -> map )
+               map (map getPointsFrom3D) pts
              
            
 
