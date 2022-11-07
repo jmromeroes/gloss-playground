@@ -34,10 +34,10 @@ main = do
       let w = World { width = 600
                     , height = 600
                     , wScale = 20
-                    , points = getPointsFromRowsAndCols w
                     , nearZ = 1
                     , farZ = 10
-                    , fovy = pi/3
+                    , fovy = pi/2
+                    , points = getPointsFromRowsAndCols w
                     }
 
       simulate (InWindow "Gloss Playground" (round (width w) :: Int, round (height w) :: Int) (10, 10))
@@ -77,8 +77,11 @@ projectionMatrixPers World{..} =
   where
     d = 1/tan(fovy/2)
 
+toRadians :: Float -> Float
+toRadians = (*) (pi/180)
+
 transformedMatrixPers :: Float -> World -> M.Matrix Float -> M.Matrix Float
-transformedMatrixPers angle w = M.multStd2 (M.multStd2 (projectionMatrixPers w) (rotationMatrixPersX angle))
+transformedMatrixPers angle w = M.multStd2 (M.multStd2 (projectionMatrixPers w) ((rotationMatrixPersX . toRadians) angle))
     
 fromMatrixToPoint :: M.Matrix Float -> Point
 fromMatrixToPoint m = (vector V.! 0, vector V.! 1)
@@ -115,6 +118,20 @@ rotationMatrixPersX angle =
                [0, sin angle, cos angle, 0],
                [0, 0, 0, 1]]
 
+rotationMatrixPersY :: Float -> M.Matrix Float
+rotationMatrixPersY angle =
+  M.fromLists [[cos angle, 0, sin angle, 0],
+               [0, 1, 0, 0],
+               [-sin angle, 0, cos angle, 0],
+               [0, 0, 0, 1]]
+
+rotationMatrixPersZ :: Float -> M.Matrix Float
+rotationMatrixPersZ angle =
+  M.fromLists [[cos angle, -sin angle, 0, 0],
+               [sin angle, cos angle, 0, 0],
+               [0, 0, 1, 0],
+               [0, 0, 0, 1]]  
+
 rotateXOrtho :: M.Matrix Float -> Float -> M.Matrix Float
 rotateXOrtho points angle =
   M.multStd2 (rotationMatrixOrthoX angle) points
@@ -130,6 +147,14 @@ rotateZOrtho points angle =
 rotateXPers :: M.Matrix Float -> Float -> M.Matrix Float
 rotateXPers points angle =
   M.multStd2 (rotationMatrixPersX angle) points
+
+rotateYPers :: M.Matrix Float -> Float -> M.Matrix Float
+rotateYPers points angle =
+  M.multStd2 (rotationMatrixPersY angle) points
+
+rotateZPers :: M.Matrix Float -> Float -> M.Matrix Float
+rotateZPers points angle =
+  M.multStd2 (rotationMatrixPersZ angle) points
 
 
 from3DPoint :: ThreeDPoint -> M.Matrix Float
@@ -151,7 +176,7 @@ rotatedPtsOrtho point =
 
 rotatedPtsPers :: ThreeDPoint -> ThreeDPoint
 rotatedPtsPers point =
-  let rotatedM = rotateXPers (from3DPointPers point) 60
+  let rotatedM = rotateZPers (rotateXPers (from3DPointPers point) 45) 45
       row = M.getCol 1 rotatedM
   in ThreeDPoint (row V.! 0) (row V.! 1) (row V.! 2)
 
@@ -159,7 +184,7 @@ transformPointOrtho :: ThreeDPoint -> Point
 transformPointOrtho = fromMatrixToPoint . projectedMatrixOrtho . from3DPoint . rotatedPtsOrtho
 
 transformPointPers :: World -> ThreeDPoint -> Point
-transformPointPers w = fromMatrixToPoint . transformedMatrixPers 10 w . from3DPointPers
+transformPointPers w = fromMatrixToPoint . transformedMatrixPers 90 w . from3DPointPers
 
 renderTriangles :: World -> Picture
 renderTriangles w =
