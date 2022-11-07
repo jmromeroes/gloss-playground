@@ -15,7 +15,11 @@ data World
   = World
   { width     :: Float
   , height    :: Float
-  , wScale     :: Float }
+  , wScale    :: Float
+  , nearZ     :: Float
+  , farZ      :: Float
+  , fovy      :: Float
+  , points    :: [[ThreeDPoint]]}
   deriving Show
 
 data ThreeDPoint
@@ -30,11 +34,14 @@ main = do
       let w = World { width = 600
                     , height = 600
                     , wScale = 20
+                    , points = getPointsFromRowsAndCols w
+                    , nearZ = 1
+                    , farZ = 10
+                    , fovy = pi/3
                     }
-      let pts = getPointsFromRowsAndCols w
-      
+
       simulate (InWindow "Gloss Playground" (round (width w) :: Int, round (height w) :: Int) (10, 10))
-        black 30 pts renderTriangles iteration
+        black 30 w renderTriangles iteration
 
 getPointsFromRowsAndCols :: World -> [[ThreeDPoint]]
 getPointsFromRowsAndCols w = do
@@ -54,72 +61,114 @@ getPointsFromRowsAndCols w = do
                   , z = 0
                   }
   
-projectionMatrix :: M.Matrix Float
-projectionMatrix = M.fromLists [[1, 0, 0], [0, 1, 0]]
+projectionMatrixOrtho :: M.Matrix Float
+projectionMatrixOrtho = M.fromLists [[1, 0, 0], [0, 1, 0]]
 
-projectedMatrix :: M.Matrix Float -> M.Matrix Float
-projectedMatrix = M.multStd2 projectionMatrix
+projectedMatrixOrtho :: M.Matrix Float -> M.Matrix Float
+projectedMatrixOrtho = M.multStd2 projectionMatrixOrtho
 
+projectionMatrixPers :: World -> M.Matrix Float
+projectionMatrixPers World{..} =
+  M.fromLists [[d/(width/height), 0, 0 , 0],
+               [0, d, 0, 0],
+               [0, 0, (-nearZ - farZ)/(nearZ-farZ), (2*farZ*nearZ)/(nearZ-farZ)],
+               [0, 0, 1, 0]]
+
+  where
+    d = 1/tan(fovy/2)
+
+transformedMatrixPers :: Float -> World -> M.Matrix Float -> M.Matrix Float
+transformedMatrixPers angle w = M.multStd2 (M.multStd2 (projectionMatrixPers w) (rotationMatrixPersX angle))
+    
 fromMatrixToPoint :: M.Matrix Float -> Point
 fromMatrixToPoint m = (vector V.! 0, vector V.! 1)
   where
     vector :: V.Vector Float
     vector = M.getCol 1 m
+    
 getPointsFrom3D :: ThreeDPoint -> Point
 getPointsFrom3D pt = (x pt, y pt)
 
-rotationMatrixX :: Float -> M.Matrix Float
-rotationMatrixX angle =
+rotationMatrixOrthoX :: Float -> M.Matrix Float
+rotationMatrixOrthoX angle =
   M.fromLists [[1, 0, 0],
                [0, cos angle, -sin angle ],
                [0, sin angle, cos angle ]]
 
-rotationMatrixY :: Float -> M.Matrix Float
-rotationMatrixY angle =
+rotationMatrixOrthoY :: Float -> M.Matrix Float
+rotationMatrixOrthoY angle =
   M.fromLists [[0, cos angle, -sin angle ],
                [1, 0, 0],
                [0, sin angle, cos angle ]]
 
-rotationMatrixZ :: Float -> M.Matrix Float
-rotationMatrixZ angle =
+rotationMatrixOrthoZ :: Float -> M.Matrix Float
+rotationMatrixOrthoZ angle =
   M.fromLists [[0, cos angle, -sin angle ],
                [0, sin angle, cos angle ],
                [1, 0, 0]]
 
-rotateX :: M.Matrix Float -> Float -> M.Matrix Float
-rotateX points angle =
-  M.multStd2 (rotationMatrixX angle) points
 
-rotateY :: M.Matrix Float -> Float -> M.Matrix Float
-rotateY points angle =
-  M.multStd2 (rotationMatrixY angle) points
+rotationMatrixPersX :: Float -> M.Matrix Float
+rotationMatrixPersX angle =
+  M.fromLists [[1, 0, 0, 0],
+               [0, cos angle, -sin angle, 0],
+               [0, sin angle, cos angle, 0],
+               [0, 0, 0, 1]]
 
-rotateZ :: M.Matrix Float -> Float -> M.Matrix Float
-rotateZ points angle =
-  M.multStd2 (rotationMatrixZ angle) points
+rotateXOrtho :: M.Matrix Float -> Float -> M.Matrix Float
+rotateXOrtho points angle =
+  M.multStd2 (rotationMatrixOrthoX angle) points
+
+rotateYOrtho :: M.Matrix Float -> Float -> M.Matrix Float
+rotateYOrtho points angle =
+  M.multStd2 (rotationMatrixOrthoY angle) points
+
+rotateZOrtho :: M.Matrix Float -> Float -> M.Matrix Float
+rotateZOrtho points angle =
+  M.multStd2 (rotationMatrixOrthoZ angle) points
+
+rotateXPers :: M.Matrix Float -> Float -> M.Matrix Float
+rotateXPers points angle =
+  M.multStd2 (rotationMatrixPersX angle) points
+
 
 from3DPoint :: ThreeDPoint -> M.Matrix Float
 from3DPoint ThreeDPoint{..} = M.fromLists [[x],
                                            [y],
                                            [z]]
 
-rotatedPts :: ThreeDPoint -> ThreeDPoint
-rotatedPts point =
-  let rotatedM = rotateZ (rotateY (from3DPoint point) 400) 400
+from3DPointPers :: ThreeDPoint -> M.Matrix Float
+from3DPointPers ThreeDPoint{..} = M.fromLists [[x],
+                                               [y],
+                                               [z],
+                                               [1]]
+
+rotatedPtsOrtho :: ThreeDPoint -> ThreeDPoint
+rotatedPtsOrtho point =
+  let rotatedM = rotateZOrtho (rotateYOrtho (from3DPoint point) 400) 400
       row = M.getCol 1 rotatedM
   in ThreeDPoint (row V.! 0) (row V.! 1) (row V.! 2)
 
-transformPoint :: ThreeDPoint -> Point
-transformPoint = fromMatrixToPoint . projectedMatrix . from3DPoint . rotatedPts
+rotatedPtsPers :: ThreeDPoint -> ThreeDPoint
+rotatedPtsPers point =
+  let rotatedM = rotateXPers (from3DPointPers point) 60
+      row = M.getCol 1 rotatedM
+  in ThreeDPoint (row V.! 0) (row V.! 1) (row V.! 2)
 
-renderTriangles :: [[ThreeDPoint]] -> Picture
-renderTriangles pts =
+transformPointOrtho :: ThreeDPoint -> Point
+transformPointOrtho = fromMatrixToPoint . projectedMatrixOrtho . from3DPoint . rotatedPtsOrtho
+
+transformPointPers :: World -> ThreeDPoint -> Point
+transformPointPers w = fromMatrixToPoint . transformedMatrixPers 10 w . from3DPointPers
+
+renderTriangles :: World -> Picture
+renderTriangles w =
   color white $ Pictures polygons
 
   where
     coordinates = do
-      y' <- [0..(length pts - 2)]
-      x' <- [0..(length pts - 2)]
+      y' <- [0..(length (points w) - 2)]
+      x' <- [0..(length (points w) - 2)]
       return (x', y')
   
     polygons =
@@ -133,7 +182,8 @@ renderTriangles pts =
            where
              mappedPts :: [[Point]]
              mappedPts =
-               (map . map) transformPoint pts         
+               (map . map) (transformPointPers w) (points w)
                
-iteration :: ViewPort -> Float -> [[ThreeDPoint]] -> [[ThreeDPoint]]
-iteration _vp _step pts = pts
+iteration :: ViewPort -> Float -> World -> World
+iteration _vp _step w = w  
+    
