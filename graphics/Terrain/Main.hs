@@ -31,7 +31,7 @@ data ThreeDPoint
 
 main :: IO ()
 main = do
-      let w = World { width = 600
+      let w = World { width = 800
                     , height = 600
                     , wScale = 20
                     , nearZ = 1
@@ -81,7 +81,10 @@ toRadians :: Float -> Float
 toRadians = (*) (pi/180)
 
 transformedMatrixPers :: Float -> World -> M.Matrix Float -> M.Matrix Float
-transformedMatrixPers angle w = M.multStd2 (M.multStd2 (projectionMatrixPers w) ((rotationMatrixPersX . toRadians) angle))
+transformedMatrixPers angle w = M.multStd2 (M.multStd2 (projectionMatrixPers w) ((transformationMatrix . toRadians) angle))
+  where
+    transformationMatrix radians =
+      M.multStd (M.multStd2 (rotationMatrixPersZ radians) (rotationMatrixPersX radians)) $ rotationMatrixPersY 30
     
 fromMatrixToPoint :: M.Matrix Float -> Point
 fromMatrixToPoint m = (vector V.! 0, vector V.! 1)
@@ -184,7 +187,7 @@ transformPointOrtho :: ThreeDPoint -> Point
 transformPointOrtho = fromMatrixToPoint . projectedMatrixOrtho . from3DPoint . rotatedPtsOrtho
 
 transformPointPers :: World -> ThreeDPoint -> Point
-transformPointPers w = fromMatrixToPoint . transformedMatrixPers 90 w . from3DPointPers
+transformPointPers w = fromMatrixToPoint . transformedMatrixPers 45 w . from3DPointPers
 
 renderTriangles :: World -> Picture
 renderTriangles w =
