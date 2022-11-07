@@ -33,10 +33,10 @@ main :: IO ()
 main = do
       let w = World { width = 800
                     , height = 600
-                    , wScale = 20
-                    , nearZ = 1
-                    , farZ = 10
-                    , fovy = pi/2
+                    , wScale = 30
+                    , nearZ = 10
+                    , farZ = 100
+                    , fovy = toRadians 90
                     , points = getPointsFromRowsAndCols w
                     }
 
@@ -47,7 +47,7 @@ getPointsFromRowsAndCols :: World -> [[ThreeDPoint]]
 getPointsFromRowsAndCols w = do
   let cols = round (width' / scl) :: Integer
   let rows = round (height' / scl) :: Integer
-  [[createPoint col row | col <- [0..cols]] | row <- [0..rows]]
+  [[createPoint col row | col <- [0..100]] | row <- [0..100]]
 
   where
     scl = wScale w
@@ -69,7 +69,7 @@ projectedMatrixOrtho = M.multStd2 projectionMatrixOrtho
 
 projectionMatrixPers :: World -> M.Matrix Float
 projectionMatrixPers World{..} =
-  M.fromLists [[d/(width/height), 0, 0 , 0],
+  M.fromLists [[d/(width/height), 0, 0, 0],
                [0, d, 0, 0],
                [0, 0, (-nearZ - farZ)/(nearZ-farZ), (2*farZ*nearZ)/(nearZ-farZ)],
                [0, 0, 1, 0]]
@@ -80,11 +80,11 @@ projectionMatrixPers World{..} =
 toRadians :: Float -> Float
 toRadians = (*) (pi/180)
 
-transformedMatrixPers :: Float -> World -> M.Matrix Float -> M.Matrix Float
-transformedMatrixPers angle w = M.multStd2 (M.multStd2 (projectionMatrixPers w) ((transformationMatrix . toRadians) angle))
+transformedMatrixPers :: World -> M.Matrix Float -> M.Matrix Float
+transformedMatrixPers w = M.multStd2 (M.multStd2 (projectionMatrixPers w) transformationMatrix)
   where
-    transformationMatrix radians =
-      M.multStd (M.multStd2 (rotationMatrixPersZ radians) (rotationMatrixPersX radians)) $ rotationMatrixPersY 30
+    transformationMatrix =
+      rotationMatrixPersX $ toRadians 0
     
 fromMatrixToPoint :: M.Matrix Float -> Point
 fromMatrixToPoint m = (vector V.! 0, vector V.! 1)
@@ -187,7 +187,7 @@ transformPointOrtho :: ThreeDPoint -> Point
 transformPointOrtho = fromMatrixToPoint . projectedMatrixOrtho . from3DPoint . rotatedPtsOrtho
 
 transformPointPers :: World -> ThreeDPoint -> Point
-transformPointPers w = fromMatrixToPoint . transformedMatrixPers 45 w . from3DPointPers
+transformPointPers w = fromMatrixToPoint . transformedMatrixPers w . from3DPointPers
 
 renderTriangles :: World -> Picture
 renderTriangles w =
