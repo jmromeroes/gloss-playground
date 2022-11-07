@@ -55,7 +55,7 @@ getPointsFromRowsAndCols w = do
                   }
   
 projectionMatrix :: M.Matrix Float
-projectionMatrix = M.fromLists [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+projectionMatrix = M.fromLists [[1, 0, 0], [0, 1, 0]]
 
 projectedMatrix :: M.Matrix Float -> M.Matrix Float
 projectedMatrix = M.multStd2 projectionMatrix
@@ -64,32 +64,54 @@ fromMatrixToPoint :: M.Matrix Float -> Point
 fromMatrixToPoint m = (vector V.! 0, vector V.! 1)
   where
     vector :: V.Vector Float
-    vector = M.getRow 0 m
-
+    vector = M.getCol 1 m
 getPointsFrom3D :: ThreeDPoint -> Point
 getPointsFrom3D pt = (x pt, y pt)
 
-rotationMatrix :: Float -> M.Matrix Float
-rotationMatrix angle =
+rotationMatrixX :: Float -> M.Matrix Float
+rotationMatrixX angle =
   M.fromLists [[1, 0, 0],
                [0, cos angle, -sin angle ],
                [0, sin angle, cos angle ]]
 
+rotationMatrixY :: Float -> M.Matrix Float
+rotationMatrixY angle =
+  M.fromLists [[0, cos angle, -sin angle ],
+               [1, 0, 0],
+               [0, sin angle, cos angle ]]
+
+rotationMatrixZ :: Float -> M.Matrix Float
+rotationMatrixZ angle =
+  M.fromLists [[0, cos angle, -sin angle ],
+               [0, sin angle, cos angle ],
+               [1, 0, 0]]
+
 rotateX :: M.Matrix Float -> Float -> M.Matrix Float
 rotateX points angle =
-  M.multStd2 (rotationMatrix angle) (projectedMatrix points)
+  M.multStd2 (rotationMatrixX angle) points
+
+rotateY :: M.Matrix Float -> Float -> M.Matrix Float
+rotateY points angle =
+  M.multStd2 (rotationMatrixY angle) points
+
+rotateZ :: M.Matrix Float -> Float -> M.Matrix Float
+rotateZ points angle =
+  M.multStd2 (rotationMatrixZ angle) points
 
 from3DPoint :: ThreeDPoint -> M.Matrix Float
 from3DPoint ThreeDPoint{..} = M.fromLists [[x],
                                            [y],
                                            [z]]
-                              
-rotatedPts :: ThreeDPoint -> Point
+
+rotatedPts :: ThreeDPoint -> ThreeDPoint
 rotatedPts point =
-  let rotatedM = rotateX (from3DPoint point) 0
+  let rotatedM = rotateZ (rotateY (from3DPoint point) 400) 400
       row = M.getCol 1 rotatedM
-  in (row V.! 1, row V.! 2)
-  
+  in ThreeDPoint (row V.! 0) (row V.! 1) (row V.! 2)
+
+transformPoint :: ThreeDPoint -> Point
+transformPoint = fromMatrixToPoint . projectedMatrix . from3DPoint . rotatedPts
+
 renderTriangles :: [[ThreeDPoint]] -> Picture
 renderTriangles pts =
   color white $ Pictures polygons
@@ -111,7 +133,7 @@ renderTriangles pts =
            where
              mappedPts :: [[Point]]
              mappedPts =
-               map (map rotatedPts) pts
+               (map . map) transformPoint pts         
                
 iteration :: ViewPort -> Float -> [[ThreeDPoint]] -> [[ThreeDPoint]]
 iteration _vp _step pts = pts
